@@ -13,7 +13,7 @@ mkdir -p "$OUT"
 IMAGE="${1:-}"
 # Reference immuable obligatoire : on verifie et on deploie le meme digest (pas de TOCTOU).
 if ! [[ "$IMAGE" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]]; then
-  echo "Usage : $0 ghcr.io/<owner>/<repo>@sha256:<64 hex>  (un tag n'est pas accepte)" >&2
+  echo "REFUSEE : reference par tag ou invalide, digest obligatoire (ghcr.io/<owner>/<repo>@sha256:<64 hex>)" >&2
   exit 1
 fi
 DIGEST="${IMAGE##*@sha256:}"

@@ -5,9 +5,9 @@ Préparez les images la veille et notez leurs digests ci-dessous.
 
 | Variable | Image | Digest |
 | --- | --- | --- |
-| `LEGIT` | `ghcr.io/<groupe>/s2-keyless-slsa` (run vert de `main`) | `sha256:52cbfba272e1b2a9935c579fa63295416898c026a45ccfd1670f25dac7d8c9a0` |
-| `FORK` | `ghcr.io/<attaquant>/s2-keyless-slsa` (scénario 1) | `sha256:…` |
-| `UNSIGNED` | `ghcr.io/<attaquant>/s2-unsigned` (scénario 2) | `sha256:…` |
+| `LEGIT` | `ghcr.io/valrom28/s2-keyless-slsa` (run vert de `main`) | `sha256:3bff6ef394698881837f25fabb89797f616dfdcb66042a41d379a8258992a327` |
+| `FORK` | `ghcr.io/vromanet-test/s2-keyless-slsa` (scénario 1) | `sha256-380ef5a8847d1aa1d53a0bd11c22436f4c0ac21e2af18e63ebf9911754d8749f` |
+| `UNSIGNED` | `ghcr.io/valrom28/s2-keyless-slsa` (scénario 2) | `sha256:24376bec5eb14ffa28b22d974edc35c8dd4d6911d7530d94467fb73531238774` |
 
 ## 0. Référence : l'image légitime est admise
 

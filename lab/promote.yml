@@ -38,6 +38,8 @@ jobs:
           ZOT_USERNAME: ${{ secrets.ZOT_USERNAME }}
           ZOT_PASSWORD: ${{ secrets.ZOT_PASSWORD }}
         run: |
+          DOCKER_CONFIG="$(mktemp -d)"
+          export DOCKER_CONFIG
           DIGEST="sha256:${IMAGE##*@sha256:}"
           if [ -n "$GH_TOKEN" ]; then
             echo "$GH_TOKEN" | crane auth login ghcr.io -u token --password-stdin
