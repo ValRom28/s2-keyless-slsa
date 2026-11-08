@@ -5,7 +5,7 @@ Préparez les images la veille et notez leurs digests ci-dessous.
 
 | Variable | Image | Digest |
 | --- | --- | --- |
-| `LEGIT` | `ghcr.io/<groupe>/s2-keyless-slsa` (run vert de `main`) | `sha256:…` |
+| `LEGIT` | `ghcr.io/<groupe>/s2-keyless-slsa` (run vert de `main`) | `sha256:52cbfba272e1b2a9935c579fa63295416898c026a45ccfd1670f25dac7d8c9a0` |
 | `FORK` | `ghcr.io/<attaquant>/s2-keyless-slsa` (scénario 1) | `sha256:…` |
 | `UNSIGNED` | `ghcr.io/<attaquant>/s2-unsigned` (scénario 2) | `sha256:…` |
 
