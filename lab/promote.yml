@@ -1,0 +1,78 @@
+# Workflow Gitea du lab : a copier dans .gitea/workflows/promote.yml du depot Gitea.
+# Admet une image construite sur GitHub seulement si sa signature keyless,
+# sa provenance SLSA et la politique sont valides, puis la recopie dans Zot
+# (meme digest) et la deploie sur VM4. Aucune cle de signature dans Gitea.
+name: promote-verified-image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Image a promouvoir : ghcr.io/<owner>/<repo>@sha256:<digest>"
+        required: true
+
+jobs:
+  verify-and-promote:
+    runs-on: ubuntu-22.04
+    outputs:
+      digest: ${{ steps.promote.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Outils (versions et empreintes figees)
+        run: |
+          apt-get update -qq && apt-get install -y -qq curl jq
+          ./verify/install-tools.sh /usr/local/bin
+
+      - name: Verification (signature keyless, provenance SLSA, politique)
+        env:
+          IMAGE: ${{ github.event.inputs.image }}
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: ./verify/verify.sh "$IMAGE"
+
+      - name: Promotion vers Zot (meme digest)
+        id: promote
+        env:
+          IMAGE: ${{ github.event.inputs.image }}
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          ZOT_USERNAME: ${{ secrets.ZOT_USERNAME }}
+          ZOT_PASSWORD: ${{ secrets.ZOT_PASSWORD }}
+        run: |
+          DIGEST="sha256:${IMAGE##*@sha256:}"
+          if [ -n "$GH_TOKEN" ]; then
+            echo "$GH_TOKEN" | crane auth login ghcr.io -u token --password-stdin
+          fi
+          echo "$ZOT_PASSWORD" | crane auth login 10.0.0.13:5000 -u "$ZOT_USERNAME" --password-stdin
+          crane copy --insecure "$IMAGE" "10.0.0.13:5000/app-devsecops:verified-${DIGEST:7:12}"
+          test "$(crane digest --insecure "10.0.0.13:5000/app-devsecops@${DIGEST}")" = "$DIGEST"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+  deploy-staging:
+    needs: [verify-and-promote]
+    runs-on: ubuntu-22.04
+    container:
+      image: dockerhub-private.terraform.cyberfarm.insa-cvl.fr/devsecops/docker-node:latest
+    steps:
+      - name: Configuration SSH
+        env:
+          SSH_DEPLOY_KEY: ${{ secrets.SSH_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "$SSH_DEPLOY_KEY" | base64 -d > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H 10.0.0.14 >> ~/.ssh/known_hosts
+
+      - name: Deploiement de l'image verifiee sur VM4 (par digest)
+        env:
+          DIGEST: ${{ needs.verify-and-promote.outputs.digest }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          ssh -i ~/.ssh/deploy_key debian@10.0.0.14 "
+            docker pull 10.0.0.13:5000/app-devsecops@${DIGEST} &&
+            (docker rm -f app-staging 2>/dev/null || true) &&
+            docker run -d --name app-staging -p 8080:8080 \
+              -e ADMIN_TOKEN=${ADMIN_TOKEN} \
+              10.0.0.13:5000/app-devsecops@${DIGEST} &&
+            for i in \$(seq 1 30); do curl -sf http://localhost:8080/health && break; sleep 1; done &&
+            curl -sf http://localhost:8080/health
+          "

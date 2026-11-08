@@ -1,0 +1,10 @@
+.git
+.gitea
+.env
+.env.*
+deploy/
+*.key
+*.pem
+**/__pycache__
+*.pyc
+*.db

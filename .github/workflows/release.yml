@@ -1,0 +1,78 @@
+# Build de l'image, signature keyless (Sigstore) et provenance SLSA.
+# Declencheur : push sur main. Aucun secret de signature : l'identite est
+# le jeton OIDC que GitHub delivre a ce workflow.
+name: release
+
+on:
+  push:
+    branches: [main]
+
+# Moindre privilege : chaque job declare ce dont il a besoin.
+permissions: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write   # publier l'image sur ghcr.io
+      id-token: write   # obtenir le jeton OIDC pour la signature keyless
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - name: Recuperation du code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Nom de l'image (ghcr.io impose les minuscules)
+        id: image
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Authentification ghcr.io
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build et publication
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.image }}:${{ github.sha }}
+          # La provenance BuildKit n'est pas signee : on utilise celle du
+          # generateur SLSA (job provenance), signee et isolee du build.
+          provenance: false
+          sbom: false
+
+      - name: Installation de Cosign
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        with:
+          cosign-release: v3.1.4
+
+      - name: Signature keyless de l'image (par digest)
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
+
+  provenance:
+    needs: [build]
+    permissions:
+      actions: read     # lire l'environnement GitHub Actions
+      id-token: write   # signer la provenance en keyless
+      packages: write   # attacher la provenance a l'image
+    # Le generateur doit etre reference par un tag vX.Y.Z (pas de SHA possible).
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ${{ needs.build.outputs.image }}
+      digest: ${{ needs.build.outputs.digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
